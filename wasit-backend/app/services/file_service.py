@@ -1,8 +1,19 @@
 import csv
-import os
+from asyncio import to_thread
 from io import StringIO
 
+import cloudinary
+import cloudinary.uploader
 from fastapi import HTTPException, UploadFile, status
+
+from app.core.config import settings
+
+cloudinary.config(
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
+    secure=True,
+)
 
 
 async def parse_trombinoscope_csv(file: UploadFile) -> list[dict]:
@@ -50,12 +61,37 @@ async def parse_trombinoscope_csv(file: UploadFile) -> list[dict]:
 
 
 async def save_upload(file: UploadFile, destination_folder: str) -> str:
-    os.makedirs(destination_folder, exist_ok=True)
+    content = await file.read()
+    await file.seek(0)
     safe_name = file.filename or "upload.csv"
-    file_path = os.path.join(destination_folder, safe_name)
+    folder = destination_folder.replace("\\", "/").strip("/")
+
+    result = await to_thread(
+        cloudinary.uploader.upload,
+        content,
+        resource_type="raw",
+        folder=folder,
+        public_id=safe_name.rsplit(".", 1)[0],
+        overwrite=True,
+    )
+    return str(result["secure_url"])
+
+
+async def save_image_upload(file: UploadFile, destination_folder: str) -> str:
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only image files are supported")
 
     content = await file.read()
     await file.seek(0)
-    with open(file_path, "wb") as target:
-        target.write(content)
-    return file_path
+    safe_name = file.filename or "image"
+    folder = destination_folder.replace("\\", "/").strip("/")
+
+    result = await to_thread(
+        cloudinary.uploader.upload,
+        content,
+        resource_type="image",
+        folder=folder,
+        public_id=safe_name.rsplit(".", 1)[0],
+        overwrite=True,
+    )
+    return str(result["secure_url"])

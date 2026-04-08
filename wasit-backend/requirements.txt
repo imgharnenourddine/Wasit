@@ -9,9 +9,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-multipart==0.0.12
 anthropic==0.34.2
+httpx==0.28.1
+langdetect==1.0.9
 python-dotenv==1.0.1
-httpx
-aiosqlite
-email-validator
-apscheduler
-websockets
+cloudinary==1.41.0

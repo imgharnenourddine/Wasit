@@ -1,44 +1,56 @@
+import json
+
+import httpx
+from langdetect import detect
+
 from app.agents.state import AgentState
-from app.agents.openrouter_client import chat_json
+from app.core.config import settings
+
+CLASSIFIER_SYSTEM_PROMPT = (
+    "You are a classifier for university student problems. "
+    "Classify the problem into: category (academic/administrative/personal/emergency) "
+    "and priority (low/medium/high/urgent/emergency). "
+    "Respond ONLY with JSON: {category, priority, language}"
+)
 
 
-async def classify_problem(state: AgentState) -> AgentState:
-    text = state.get("raw_text", "").lower()
+class ClassifierAgent:
+    def __init__(self) -> None:
+        self.api_key = settings.MISTRAL_API_KEY
+        self.model = "mistral-large-latest"
 
-    category = "administrative"
-    priority = "medium"
-    language = "unknown"
+    async def run(self, state: AgentState) -> AgentState:
+        raw_text = state.get("raw_text", "")
+        try:
+            detected_language = detect(raw_text) if raw_text.strip() else "unknown"
+        except Exception:
+            detected_language = "unknown"
 
-    try:
-        result = await chat_json(
-            system_prompt=(
-                "You classify university student problems. "
-                "Return strict JSON only: "
-                '{"category":"academic|administrative|personal|emergency",'
-                '"priority":"low|medium|high|urgent|emergency","language":"string"}'
-            ),
-            user_prompt=f"Problem text:\n{text}",
-        )
-        category = str(result.get("category", category))
-        priority = str(result.get("priority", priority))
-        language = str(result.get("language", language))
-    except Exception:
-        if any(word in text for word in ["urgent", "danger", "violence", "suicide", "fire"]):
-            category = "emergency"
-            priority = "emergency"
-        elif any(word in text for word in ["stress", "anxiety", "depressed", "harassment"]):
-            category = "personal"
-            priority = "high"
-        elif any(word in text for word in ["exam", "course", "teacher", "grade", "module"]):
-            category = "academic"
-            priority = "medium"
+        payload = {
+            "model": self.model,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": CLASSIFIER_SYSTEM_PROMPT},
+                {"role": "user", "content": raw_text},
+            ],
+            "temperature": 0,
+        }
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                "https://api.mistral.ai/v1/chat/completions", json=payload, headers=headers
+            )
+            response.raise_for_status()
+            body = response.json()
+        response_text = body["choices"][0]["message"]["content"]
 
-        if any(word in text for word in ["le", "la", "de", "et", "bonjour"]):
-            language = "fr"
-        elif any(word in text for word in ["the", "and", "hello"]):
-            language = "en"
+        try:
+            parsed = json.loads(response_text)
+        except json.JSONDecodeError:
+            state["error"] = "Classifier response is not valid JSON"
+            return state
 
-    state["category"] = category
-    state["priority"] = priority
-    state["language"] = language
-    return state
+        state["language"] = str(parsed.get("language") or detected_language)
+        state["category"] = str(parsed.get("category") or "academic")
+        state["priority"] = str(parsed.get("priority") or "low")
+        return state
