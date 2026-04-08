@@ -46,9 +46,16 @@ class Problem(Base):
     ticket_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    class_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    student_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
     language_detected: Mapped[str | None] = mapped_column(String(50), nullable=True)
     classified_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     aggregation_group_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("aggregation_groups.id", ondelete="SET NULL"), nullable=True, index=True
     )

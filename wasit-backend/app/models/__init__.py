@@ -1,8 +1,11 @@
 from app.core.database import Base
-from app.models.agents import AggregationGroup, Problem
-from app.models.auth import Role, User
-from app.models.institutional import Class, Filiere, School
-from app.models.students import ProjectGroup, ProjectGroupMember, Student
+from app.models.institution import Class, Filiere, School
+from app.models.notification import Notification
+from app.models.problem import AggregationGroup, Problem
+from app.models.student import ProjectGroup, ProjectGroupMember, Student
+from app.models.telegram import TelegramGroup, TelegramMessage
+from app.models.ticket import Ticket, TicketHistory
+from app.models.user import Role, User
 
 __all__ = [
     "Base",
@@ -16,4 +19,9 @@ __all__ = [
     "Student",
     "ProjectGroup",
     "ProjectGroupMember",
+    "Ticket",
+    "TicketHistory",
+    "Notification",
+    "TelegramGroup",
+    "TelegramMessage",
 ]
