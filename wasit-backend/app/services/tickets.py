@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.student import Student
 from app.models.problem import Problem
 from app.models.ticket import Ticket, TicketCategory, TicketHistory, TicketPriority, TicketStatus
 from app.services.agents import run_pipeline
@@ -17,8 +19,16 @@ def _make_title(raw_text: str) -> str:
 
 
 async def create_ticket_from_problem(
-    db: AsyncSession, student_id: str, class_id: str, raw_text: str
+    db: AsyncSession, student_id: UUID, class_id: UUID, raw_text: str, changed_by_user_id: UUID | None = None
 ) -> Ticket:
+    changed_by = changed_by_user_id
+    if changed_by is None:
+        student_result = await db.execute(select(Student).where(Student.id == student_id))
+        student = student_result.scalar_one_or_none()
+        if not student:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+        changed_by = student.user_id
+
     ticket = Ticket(
         student_id=student_id,
         class_id=class_id,
@@ -35,8 +45,8 @@ async def create_ticket_from_problem(
     db.add(
         TicketHistory(
             ticket_id=ticket.id,
-            changed_by=student_id,
-            old_status=None,
+            changed_by=changed_by,
+            old_status=TicketStatus.open,
             new_status=TicketStatus.open,
             note="Ticket created",
         )
@@ -49,7 +59,7 @@ async def create_ticket_from_problem(
     return ticket
 
 
-async def get_ticket(db: AsyncSession, ticket_id: str) -> tuple[Ticket, list[TicketHistory]]:
+async def get_ticket(db: AsyncSession, ticket_id: UUID) -> tuple[Ticket, list[TicketHistory]]:
     ticket = await db.get(Ticket, ticket_id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
@@ -61,7 +71,7 @@ async def get_ticket(db: AsyncSession, ticket_id: str) -> tuple[Ticket, list[Tic
     return ticket, history
 
 
-async def get_student_tickets(db: AsyncSession, student_id: str) -> list[Ticket]:
+async def get_student_tickets(db: AsyncSession, student_id: UUID) -> list[Ticket]:
     result = await db.execute(
         select(Ticket).where(Ticket.student_id == student_id).order_by(Ticket.created_at.desc())
     )
@@ -69,7 +79,7 @@ async def get_student_tickets(db: AsyncSession, student_id: str) -> list[Ticket]
 
 
 async def get_class_tickets(
-    db: AsyncSession, class_id: str, status_filter: TicketStatus | None = None
+    db: AsyncSession, class_id: UUID, status_filter: TicketStatus | None = None
 ) -> list[Ticket]:
     stmt = select(Ticket).where(Ticket.class_id == class_id)
     if status_filter:
@@ -90,7 +100,7 @@ async def get_all_open_tickets(db: AsyncSession) -> list[Ticket]:
 
 
 async def update_ticket_status(
-    db: AsyncSession, ticket_id: str, new_status: TicketStatus, changed_by_id: str, note: str | None
+    db: AsyncSession, ticket_id: UUID, new_status: TicketStatus, changed_by_id: UUID, note: str | None
 ) -> Ticket:
     ticket = await db.get(Ticket, ticket_id)
     if not ticket:

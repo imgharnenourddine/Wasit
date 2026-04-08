@@ -12,3 +12,6 @@ anthropic==0.34.2
 python-dotenv==1.0.1
 httpx
 aiosqlite
+email-validator
+apscheduler
+websockets

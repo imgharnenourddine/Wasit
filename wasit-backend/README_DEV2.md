@@ -21,15 +21,17 @@ Goal: deliver the full "problem -> routing -> notification" execution flow.
 
 ## Dependency and Sync
 
-You can start coding now, but one dependency must be ready from Dev 1:
+Dev 1 Auth is now integrated in this repo:
 
-- Auth dependency (`get_current_user`)
-- Roles and RBAC (`student`, `delegate`, `teacher`, `admin`, `listening`)
+- `get_current_user` uses JWT bearer token
+- `require_role(...)` checks `current_user.role.value`
+- `auth` routes are wired in `main.py`
 
-### Sync rule
+### What changed for Dev 2
 
-- Blocker: role-protected routes depend on Auth from Dev 1.
-- Workaround: implement your services/routes first, then wire final role checks after Dev 1 merge.
+- Remove any temporary header-based auth assumptions.
+- Test ticket endpoints with real bearer token from `/api/v1/auth/login`.
+- Keep role names consistent: `student`, `delegate`, `teacher`, `admin`, `listening`.
 
 ---
 
@@ -52,8 +54,8 @@ Do not start Telegram/Notifications before Ticket + agent core is stable.
 
 ### Files
 
-- `app/schemas/ticket.py`
-- `app/services/ticket_service.py`
+- `app/schemas/tickets.py`
+- `app/services/tickets.py`
 - `app/api/v1/routes/tickets.py`
 
 ### Required features
@@ -143,7 +145,7 @@ Do not start Telegram/Notifications before Ticket + agent core is stable.
 ### Files
 
 - `app/agents/pipeline.py`
-- `app/services/agent_service.py`
+- `app/services/agents.py`
 
 ### Graph
 
@@ -167,7 +169,7 @@ Do not start Telegram/Notifications before Ticket + agent core is stable.
 
 ### Files
 
-- `app/services/telegram_service.py`
+- `app/services/telegram.py`
 - `app/api/v1/routes/telegram.py`
 
 ### Endpoints
@@ -196,7 +198,7 @@ Do not start Telegram/Notifications before Ticket + agent core is stable.
 
 ### Files
 
-- `app/services/notification_service.py`
+- `app/services/notifications.py`
 - `app/api/v1/routes/notifications.py`
 
 ### Features
@@ -223,12 +225,12 @@ Do not start Telegram/Notifications before Ticket + agent core is stable.
 
 ## Integration Checklist
 
-- [ ] Ticket creation calls pipeline service
-- [ ] Pipeline reaches broadcast node
-- [ ] Broadcast triggers notification service
+- [x] Ticket creation calls pipeline service
+- [x] Pipeline reaches broadcast node
+- [x] Broadcast triggers notification service (stub)
 - [ ] Telegram route can create ticket from webhook
 - [ ] Status updates write history correctly
-- [ ] Role checks applied to all protected routes
+- [x] Role checks applied to protected routes (JWT + RBAC)
 - [ ] Error responses use proper HTTP status codes
 
 ---
@@ -237,7 +239,7 @@ Do not start Telegram/Notifications before Ticket + agent core is stable.
 
 ### Day 1
 
-- Implement `schemas/ticket.py`, `ticket_service.py`, `tickets.py` routes.
+- Implement `schemas/tickets.py`, `services/tickets.py`, `routes/tickets.py`.
 
 ### Day 2
 
@@ -245,7 +247,7 @@ Do not start Telegram/Notifications before Ticket + agent core is stable.
 
 ### Day 3
 
-- Implement `pipeline.py` and `agent_service.py`, wire to ticket flow.
+- Implement `pipeline.py` and finalize `services/agents.py` wiring.
 
 ### Day 4
 

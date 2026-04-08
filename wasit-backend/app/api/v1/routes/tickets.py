@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
+from app.models.student import Student
 from app.models.ticket import Ticket, TicketHistory, TicketStatus
 from app.models.user import User
 from app.schemas.tickets import ProblemSubmit, TicketHistoryResponse, TicketResponse, TicketUpdate
@@ -16,6 +19,17 @@ from app.services.tickets import (
 )
 
 router = APIRouter(prefix="", tags=["tickets"])
+
+
+async def _get_student_profile(db: AsyncSession, user_id: UUID) -> Student:
+    result = await db.execute(select(Student).where(Student.user_id == user_id))
+    student = result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No student profile linked to current user",
+        )
+    return student
 
 
 def _to_response(ticket: Ticket, history: list[TicketHistory] | None = None) -> TicketResponse:
@@ -48,12 +62,17 @@ def _to_response(ticket: Ticket, history: list[TicketHistory] | None = None) -> 
 @router.post("/tickets", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
 async def create_ticket(
     payload: ProblemSubmit,
-    class_id: str = Query(..., description="Class identifier"),
+    class_id: UUID = Query(..., description="Class identifier"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("student")),
 ) -> TicketResponse:
+    student = await _get_student_profile(db, user.id)
     ticket = await create_ticket_from_problem(
-        db=db, student_id=user.id, class_id=class_id, raw_text=payload.raw_text
+        db=db,
+        student_id=student.id,
+        class_id=class_id,
+        raw_text=payload.raw_text,
+        changed_by_user_id=user.id,
     )
     _, history = await get_ticket(db, ticket.id)
     return _to_response(ticket, history)
@@ -61,14 +80,16 @@ async def create_ticket(
 
 @router.get("/tickets/{ticket_id}", response_model=TicketResponse)
 async def read_ticket(
-    ticket_id: str,
+    ticket_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TicketResponse:
     ticket, history = await get_ticket(db, ticket_id)
     staff_roles = {"delegate", "teacher", "admin", "listening"}
-    if user.role.value not in staff_roles and ticket.student_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to access this ticket")
+    if user.role.value not in staff_roles:
+        student = await _get_student_profile(db, user.id)
+        if ticket.student_id != student.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to access this ticket")
     return _to_response(ticket, history)
 
 
@@ -77,13 +98,14 @@ async def read_my_tickets(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("student")),
 ) -> list[TicketResponse]:
-    tickets = await get_student_tickets(db, user.id)
+    student = await _get_student_profile(db, user.id)
+    tickets = await get_student_tickets(db, student.id)
     return [_to_response(ticket) for ticket in tickets]
 
 
 @router.get("/classes/{class_id}/tickets", response_model=list[TicketResponse])
 async def read_class_tickets(
-    class_id: str,
+    class_id: UUID,
     status_filter: TicketStatus | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_role("delegate", "teacher", "admin")),
@@ -94,7 +116,7 @@ async def read_class_tickets(
 
 @router.patch("/tickets/{ticket_id}/status", response_model=TicketResponse)
 async def patch_ticket_status(
-    ticket_id: str,
+    ticket_id: UUID,
     payload: TicketUpdate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("delegate", "teacher", "admin", "listening")),
