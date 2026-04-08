@@ -5,6 +5,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.api.v1.routes.auth import router as auth_router
 from app.api.v1.routes.notifications import router as notifications_router
 from app.api.v1.routes.telegram import router as telegram_router
+from app.api.v1.routes.institutional import router as institutional_router
+from app.api.v1.routes.students import router as students_router
 from app.api.v1.routes.tickets import router as tickets_router
 from app.core.config import settings
 from app.core.database import SessionLocal, init_db
@@ -37,6 +39,8 @@ async def on_startup() -> None:
 
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(institutional_router, prefix="/api/v1")
+app.include_router(students_router, prefix="/api/v1")
 
 
 @app.get("/health")
