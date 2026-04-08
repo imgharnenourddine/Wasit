@@ -1,1 +1,5 @@
-"""This file will contain API routes for authentication operations."""
+"""API routes for authentication (login, refresh, register)."""
+
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/auth", tags=["auth"])

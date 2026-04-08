@@ -3,6 +3,7 @@ from app.models.agents import AggregationGroup, Problem
 from app.models.auth import Role, User
 from app.models.institutional import Class, Filiere, School
 from app.models.students import ProjectGroup, ProjectGroupMember, Student
+from app.models.tickets import Ticket
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "Student",
     "ProjectGroup",
     "ProjectGroupMember",
+    "Ticket",
 ]

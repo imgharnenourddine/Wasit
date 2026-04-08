@@ -61,6 +61,7 @@ class Class(Base):
     delegate = relationship("User", back_populates="delegated_classes", foreign_keys=[delegate_id])
     students = relationship("Student", back_populates="class_", cascade="all, delete-orphan")
     project_groups = relationship("ProjectGroup", back_populates="class_", cascade="all, delete-orphan")
+    tickets = relationship("Ticket", back_populates="class_", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"Class(id={self.id}, name={self.name}, year={self.academic_year})"

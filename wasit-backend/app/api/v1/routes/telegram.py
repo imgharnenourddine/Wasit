@@ -1,1 +1,5 @@
-"""This file will contain API routes for Telegram integration operations."""
+"""API routes for Telegram integration."""
+
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/telegram", tags=["telegram"])

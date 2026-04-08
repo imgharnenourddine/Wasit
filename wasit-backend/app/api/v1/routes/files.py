@@ -1,1 +1,5 @@
-"""This file will contain API routes for file upload and retrieval operations."""
+"""API routes for file uploads and retrieval."""
+
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/files", tags=["files"])

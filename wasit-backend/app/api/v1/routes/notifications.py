@@ -1,1 +1,5 @@
-"""This file will contain API routes for notification delivery operations."""
+"""API routes for notifications."""
+
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/notifications", tags=["notifications"])

@@ -27,6 +27,7 @@ class Student(Base):
     group_memberships = relationship(
         "ProjectGroupMember", back_populates="student", cascade="all, delete-orphan"
     )
+    tickets = relationship("Ticket", back_populates="student", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"Student(id={self.id}, user_id={self.user_id}, class_id={self.class_id})"
