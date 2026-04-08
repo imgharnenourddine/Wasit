@@ -3,10 +3,11 @@ from app.models.institution import Class, Filiere, School
 from app.models.problem import AggregationGroup, Problem
 from app.models.student import ProjectGroup, ProjectGroupMember, Student
 from app.models.ticket import Ticket, TicketHistory
-from app.models.user import User
+from app.models.user import Role, User
 
 __all__ = [
     "Base",
+    "Role",
     "User",
     "School",
     "Filiere",
