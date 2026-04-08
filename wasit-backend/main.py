@@ -2,10 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.routes.auth import router as auth_router
+from app.api.v1.routes.tickets import router as tickets_router
+from app.core.config import settings
 from app.core.database import init_db
 
-app = FastAPI(title="Wasit API", version="1.0.0")
-
+app = FastAPI(title=settings.app_name)
+app.include_router(tickets_router, prefix=settings.api_prefix)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
