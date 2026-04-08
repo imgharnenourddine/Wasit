@@ -19,7 +19,7 @@ class TicketHistoryResponse(BaseModel):
     old_status: TicketStatus | None
     new_status: TicketStatus
     note: str | None
-    changed_by: str
+    changed_by: UUID
     created_at: datetime
 
 

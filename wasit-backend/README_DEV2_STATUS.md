@@ -24,12 +24,12 @@ Update it after every coding session.
 ### Completed
 
 - [x] Created dedicated branch for Dev 2
-- [x] Added temporary auth bridge in `app/core/dependencies.py` (header-based)
-- [x] Implemented ticket models in `app/models/tickets.py`
+- [x] Pulled and integrated Dev 1 auth updates (JWT + RBAC)
+- [x] Updated ticket model usage to Dev 1 structure (`app/models/ticket.py`, `app/models/problem.py`)
 - [x] Implemented ticket schemas in `app/schemas/tickets.py`
 - [x] Implemented ticket service methods in `app/services/tickets.py`
 - [x] Implemented ticket routes in `app/api/v1/routes/tickets.py`
-- [x] Wired app startup + health + ticket router in `main.py`
+- [x] Wired app startup + health + ticket router + auth router in `main.py`
 - [x] Added initial DB/session/config setup
 - [x] Implemented `AgentState` in `app/agents/state.py`
 - [x] Implemented router logic in `app/agents/router.py`
@@ -47,7 +47,7 @@ Update it after every coding session.
 - [ ] Formal `pipeline.py` module (separate assembly interface)
 - [ ] Persist classifier/aggregator outputs to DB fields
 - [ ] Add APScheduler job for overdue ticket escalation
-- [ ] Add tests for tickets + agent chain
+- [ ] Add tests for auth + tickets + agent chain
 
 ### Not Started
 
@@ -55,19 +55,16 @@ Update it after every coding session.
 - [ ] Telegram routes real implementation (`app/api/v1/routes/telegram.py`)
 - [ ] Notification service real implementation (`app/services/notifications.py`)
 - [ ] Notification routes + WebSocket (`app/api/v1/routes/notifications.py`)
-- [ ] Role sync with Dev 1 JWT auth dependency (replace temporary headers)
+- [ ] Replace any remaining temp auth assumptions in docs/tests
 
 ---
 
 ## Integration Notes (with Dev 1)
 
-- Temporary auth currently uses headers:
-  - `x-user-id`
-  - `x-user-role`
-- After pulling Dev 1:
-  - Replace temporary dependency with JWT-based `get_current_user`
-  - Keep Ticket and Agent business logic unchanged
-  - Re-test all role-protected endpoints
+- Auth integration is now JWT-based through `app/core/dependencies.py`.
+- Dev 2 routes now use bearer tokens from `/api/v1/auth/login`.
+- Keep Ticket and Agent business logic unchanged while aligning with Dev 1 UUID models.
+- Re-test role-protected endpoints after each merge from `main`.
 
 ---
 
@@ -111,5 +108,6 @@ Copy this block and append one per session:
 
 - [ ] `python3 -m compileall main.py app` passes
 - [ ] No secrets in tracked files
+- [ ] Auth flow tested: register/login/me/refresh/logout
 - [ ] Updated this status file
 - [ ] Endpoints tested manually for changed scope
