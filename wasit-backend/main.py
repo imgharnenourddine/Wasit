@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.routes.auth import router as auth_router
 from app.core.database import init_db
 
 app = FastAPI(title="Wasit API", version="1.0.0")
@@ -17,6 +18,9 @@ app.add_middleware(
 @app.on_event("startup")
 async def on_startup() -> None:
     await init_db()
+
+
+app.include_router(auth_router, prefix="/api/v1")
 
 
 @app.get("/health")
