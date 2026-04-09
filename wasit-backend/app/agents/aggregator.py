@@ -103,18 +103,36 @@ class AggregatorAgent:
             target_group.count += 1
             target_group.last_seen = datetime.now(timezone.utc)
 
-        problem = Problem(
-            ticket_id=ticket_id,
-            class_id=class_id,
-            student_id=student_id,
-            raw_text=raw_text,
-            category=category,
-            aggregation_group_id=target_group.id,
-        )
-        db.add(problem)
+        existing = await db.scalar(select(Problem).where(Problem.ticket_id == ticket_id))
+        if existing is not None:
+            existing.class_id = class_id
+            existing.student_id = student_id
+            existing.category = category
+            existing.aggregation_group_id = target_group.id
+        else:
+            db.add(
+                Problem(
+                    ticket_id=ticket_id,
+                    class_id=class_id,
+                    student_id=student_id,
+                    raw_text=raw_text,
+                    category=category,
+                    aggregation_group_id=target_group.id,
+                )
+            )
         await db.commit()
         await db.refresh(target_group)
 
         state["aggregation_group_id"] = str(target_group.id)
         state["similar_count"] = int(target_group.count)
         return state
+
+
+_aggregator = AggregatorAgent()
+
+
+async def aggregate_problem(state: AgentState) -> AgentState:
+    from app.core.database import SessionLocal
+
+    async with SessionLocal() as db:
+        return await _aggregator.run(state, db)

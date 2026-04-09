@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -15,6 +18,8 @@ from app.api.v1.routes.tickets import router as tickets_router
 from app.core.config import settings
 from app.core.database import SessionLocal, init_db
 from app.services.tickets import auto_escalate_overdue_tickets
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 
@@ -38,9 +43,21 @@ app.add_middleware(
 )
 
 
+async def _init_db_background() -> None:
+    try:
+        await init_db()
+        logger.info("Database tables initialized (create_all).")
+    except Exception:
+        logger.exception(
+            "init_db failed — check PostgreSQL is running and DATABASE_URL in .env. "
+            "API /health still works; routes using the DB will error until the DB is available."
+        )
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
-    await init_db()
+    # Do not block startup on DB: Uvicorn can serve /health while Postgres is starting or misconfigured.
+    asyncio.create_task(_init_db_background())
     scheduler = AsyncIOScheduler()
 
     async def _escalation_job() -> None:

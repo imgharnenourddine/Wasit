@@ -54,3 +54,10 @@ class ClassifierAgent:
         state["category"] = str(parsed.get("category") or "academic")
         state["priority"] = str(parsed.get("priority") or "low")
         return state
+
+
+_classifier = ClassifierAgent()
+
+
+async def classify_problem(state: AgentState) -> AgentState:
+    return await _classifier.run(state)
