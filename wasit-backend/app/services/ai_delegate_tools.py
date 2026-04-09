@@ -1,123 +1,73 @@
-"""LangChain-based tool implementations for the AI Delegate bot.
-
-Instead of querying structured DB rows (TimetableSlot, ExamEvent), we now:
-  1. Load the extracted PDF text stored in FilierePDFDocument.
-  2. Split into chunks with RecursiveCharacterTextSplitter.
-  3. Build an ephemeral FAISS vector store using Mistral embeddings.
-  4. Retrieve the top-k relevant chunks.
-  5. Stuff them into a prompt and call the LLM for a natural-language answer.
-"""
+"""DB-backed tool implementations for the AI Delegate ."""
 
 from __future__ import annotations
 
+from datetime import date, datetime, time, timezone
 from uuid import UUID
 
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains.retrieval import create_retrieval_chain
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_community.vectorstores import FAISS
-from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.models.delegate_data import FilierePDFDocument
-from app.models.institution import Class
+from app.models.delegate_data import ExamEvent, TimetableSlot
 from app.models.student import Student
 from app.models.user import User
-from sqlalchemy import func
+
+_WEEKDAY_MON0 = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
+def _day_name(dow: int) -> str:
+    return _WEEKDAY_MON0[dow % 7]
 
-_CHUNK_SIZE = 800
-_CHUNK_OVERLAP = 100
-_TOP_K = 5
 
-_RAG_PROMPT = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            (
-                "Tu es le délégué numérique de la classe. Réponds en français de manière concise "
-                "en te basant UNIQUEMENT sur les informations contenues dans le contexte suivant. "
-                "Si l'information n'est pas présente dans le contexte, dis-le clairement.\n\n"
-                "Contexte:\n{context}"
-            ),
-        ),
-        ("human", "{input}"),
+async def get_timetable(
+    db: AsyncSession, class_id: UUID, day_of_week: int | None = None
+) -> list[dict[str, str | int | None]]:
+    stmt = select(TimetableSlot).where(TimetableSlot.class_id == class_id).order_by(
+        TimetableSlot.day_of_week, TimetableSlot.start_time
+    )
+    if day_of_week is not None:
+        stmt = stmt.where(TimetableSlot.day_of_week == day_of_week)
+    rows = (await db.execute(stmt)).scalars().all()
+    out: list[dict[str, str | int | None]] = []
+    for slot in rows:
+        out.append(
+            {
+                "day_of_week": slot.day_of_week,
+                "day": _day_name(slot.day_of_week),
+                "start": slot.start_time.strftime("%H:%M"),
+                "end": slot.end_time.strftime("%H:%M"),
+                "subject": slot.subject,
+                "room": slot.room,
+                "teacher_name": slot.teacher_name,
+            }
+        )
+    return out
+
+
+async def get_exam_schedule(
+    db: AsyncSession, class_id: UUID, limit: int = 10, after: datetime | None = None
+) -> list[dict[str, str | None]]:
+    if after is None:
+        ref = datetime.now(timezone.utc)
+    else:
+        ref = after if after.tzinfo else after.replace(tzinfo=timezone.utc)
+    stmt = (
+        select(ExamEvent)
+        .where(ExamEvent.class_id == class_id, ExamEvent.starts_at >= ref)
+        .order_by(ExamEvent.starts_at.asc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+    return [
+        {
+            "title": r.title,
+            "subject": r.subject,
+            "starts_at": r.starts_at.isoformat(),
+            "room": r.room,
+        }
+        for r in rows
     ]
-)
 
-
-def _build_retrieval_chain(text: str):
-    """Build an ephemeral LangChain retrieval chain from a plain-text document."""
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=_CHUNK_SIZE,
-        chunk_overlap=_CHUNK_OVERLAP,
-    )
-    chunks = splitter.create_documents([text])
-
-    embeddings = MistralAIEmbeddings(
-        api_key=settings.MISTRAL_API_KEY,
-        model="mistral-embed",
-    )
-    vector_store = FAISS.from_documents(chunks, embeddings)
-    retriever = vector_store.as_retriever(search_kwargs={"k": _TOP_K})
-
-    llm = ChatMistralAI(
-        api_key=settings.MISTRAL_API_KEY,
-        model="mistral-large-latest",
-        temperature=0,
-    )
-    combine_docs_chain = create_stuff_documents_chain(llm, _RAG_PROMPT)
-    return create_retrieval_chain(retriever, combine_docs_chain)
-
-
-async def query_filiere_document(
-    db: AsyncSession,
-    filiere_id: UUID,
-    doc_type: str,
-    question: str,
-) -> str:
-    """Answer a question using RAG over the stored PDF text for a filière.
-
-    Args:
-        db: Async SQLAlchemy session.
-        filiere_id: The filière whose PDF to query.
-        doc_type: ``"timetable"`` or ``"exam_schedule"``.
-        question: Natural-language question from the student.
-
-    Returns:
-        Natural-language answer, or a polite "not available" message.
-    """
-    result = await db.execute(
-        select(FilierePDFDocument).where(
-            FilierePDFDocument.filiere_id == filiere_id,
-            FilierePDFDocument.doc_type == doc_type,
-        )
-    )
-    doc = result.scalar_one_or_none()
-    if doc is None:
-        label = "emploi du temps" if doc_type == "timetable" else "calendrier des examens"
-        return (
-            f"Le {label} de cette filière n'a pas encore été uploadé par le chef de filière. "
-            "Contactez-le directement pour obtenir l'information."
-        )
-
-    chain = _build_retrieval_chain(doc.extracted_text)
-    # LangChain chains are sync; run in the default thread pool
-    from asyncio import to_thread
-    response = await to_thread(chain.invoke, {"input": question})
-    return str(response.get("answer", "Désolé, je n'ai pas pu trouver la réponse."))
-
-
-# ---------------------------------------------------------------------------
-# Trombinoscope / student count helpers (unchanged, still DB-backed)
-# ---------------------------------------------------------------------------
 
 async def get_trombinoscope(
     db: AsyncSession, class_id: UUID, name_query: str | None = None, limit: int = 50
@@ -152,59 +102,89 @@ async def get_class_student_count(db: AsyncSession, class_id: UUID) -> int:
     return int(n or 0)
 
 
-# ---------------------------------------------------------------------------
-# Resolve filiere_id from class_id (needed by autonomous_reply_from_tools)
-# ---------------------------------------------------------------------------
-
-async def _get_filiere_id(db: AsyncSession, class_id: UUID) -> UUID | None:
-    c = await db.get(Class, class_id)
-    return c.filiere_id if c else None
-
-
-# ---------------------------------------------------------------------------
-# Top-level autonomous reply dispatcher
-# ---------------------------------------------------------------------------
-
-async def autonomous_reply_from_tools(
-    db: AsyncSession, class_id: UUID, user_text: str
-) -> str | None:
-    """Return a natural-language answer when the message maps to helper data."""
-    t = user_text.lower()
-
-    # --- Exam schedule ---
-    if any(k in t for k in ("exam", "examen", "contrôle", "ds", "partiel", "exams")):
-        filiere_id = await _get_filiere_id(db, class_id)
-        if filiere_id is None:
-            return "Impossible d'identifier la filière de cette classe."
-        return await query_filiere_document(db, filiere_id, "exam_schedule", user_text)
-
-    # --- Timetable ---
-    if any(
-        k in t
-        for k in (
-            "emploi",
-            "timetable",
-            "schedule",
-            "cours",
-            "jeudi",
-            "lundi",
-            "mardi",
-            "mercredi",
-            "vendredi",
-            "salle",
-            "horaire",
-            "enseigne",
-            "professeur",
-            " prof",
+async def get_free_slots(db: AsyncSession, class_id: UUID, week_start: date | None = None) -> list[dict[str, str]]:
+    """Naive free blocks: assumes school day 08:00–18:00 Mon–Fri; gaps between timetable slots."""
+    _ = week_start  # reserved for future week-scoped logic
+    slots = (
+        await db.execute(
+            select(TimetableSlot)
+            .where(TimetableSlot.class_id == class_id)
+            .order_by(TimetableSlot.day_of_week, TimetableSlot.start_time)
         )
-    ):
-        filiere_id = await _get_filiere_id(db, class_id)
-        if filiere_id is None:
-            return "Impossible d'identifier la filière de cette classe."
-        return await query_filiere_document(db, filiere_id, "timetable", user_text)
+    ).scalars().all()
+    by_day: dict[int, list[TimetableSlot]] = {}
+    for s in slots:
+        by_day.setdefault(s.day_of_week, []).append(s)
 
-    # --- Trombinoscope ---
+    school_start = time(8, 0)
+    school_end = time(18, 0)
+    free: list[dict[str, str]] = []
+    for dow in range(0, 5):
+        day_slots = by_day.get(dow, [])
+        cursor = school_start
+        for sl in day_slots:
+            if sl.start_time > cursor:
+                free.append(
+                    {
+                        "day": _day_name(dow),
+                        "start": cursor.strftime("%H:%M"),
+                        "end": sl.start_time.strftime("%H:%M"),
+                    }
+                )
+            cursor = max(cursor, sl.end_time)
+        if cursor < school_end:
+            free.append(
+                {
+                    "day": _day_name(dow),
+                    "start": cursor.strftime("%H:%M"),
+                    "end": school_end.strftime("%H:%M"),
+                }
+            )
+    return free
+
+
+async def autonomous_reply_from_tools(db: AsyncSession, class_id: UUID, user_text: str) -> str | None:
+    """Return a short natural-language answer when the message clearly maps to helper data."""
+    t = user_text.lower()
+    if any(k in t for k in ("exam", "examen", "contrôle", "ds", "partiel")):
+        exams = await get_exam_schedule(db, class_id, limit=5)
+        if not exams:
+            return "Aucun examen à venir n’est enregistré pour cette classe pour l’instant."
+        lines = [f"• {e['title']} — {e['starts_at']}" + (f" ({e['room']})" if e.get("room") else "") for e in exams]
+        return "Prochains examens:\n" + "\n".join(lines)
+
+    if any(k in t for k in ("emploi", "timetable", "schedule", "cours", "jeudi", "lundi", "mardi", "mercredi", "vendredi")):
+        # crude day detection
+        day_map = {
+            "lundi": 0,
+            "monday": 0,
+            "mardi": 1,
+            "tuesday": 1,
+            "mercredi": 2,
+            "wednesday": 2,
+            "jeudi": 3,
+            "thursday": 3,
+            "vendredi": 4,
+            "friday": 4,
+        }
+        dow: int | None = None
+        for key, val in day_map.items():
+            if key in t:
+                dow = val
+                break
+        tt = await get_timetable(db, class_id, day_of_week=dow)
+        if not tt:
+            return (
+                "Aucun créneau d’emploi du temps n’est enregistré pour cette période."
+                if dow is not None
+                else "L’emploi du temps de la classe n’est pas encore renseigné."
+            )
+        label = _day_name(dow) if dow is not None else "la semaine"
+        lines = [f"• {x['start']}–{x['end']} {x['subject']}" + (f" — {x['room']}" if x.get("room") else "") for x in tt]
+        return f"Cours ({label}):\n" + "\n".join(lines)
+
     if any(k in t for k in ("trombi", "étudiant", "student", "élève", "who is", "qui est")):
+        # optional name after "étudiant" — take last word as guess
         parts = user_text.split()
         name_q = parts[-1] if len(parts) > 1 and len(parts[-1]) > 2 else None
         rows = await get_trombinoscope(db, class_id, name_query=name_q)
@@ -213,7 +193,6 @@ async def autonomous_reply_from_tools(
         lines = [f"• {r['first_name']} {r['last_name']}" for r in rows[:15]]
         return "Trombinoscope:\n" + "\n".join(lines)
 
-    # --- Student count ---
     if any(k in t for k in ("combien", "how many", "nombre", "effectif", "students in")):
         n = await get_class_student_count(db, class_id)
         return f"Effectif enregistré pour cette classe: {n} étudiant(s)."
