@@ -1,11 +1,10 @@
-"""AI Delegate helper data: per-class bot config, filière PDF documents (FEATURE_AI_DELEGATE)."""
+"""AI Delegate helper data: per-class bot config, timetable, exams (FEATURE_AI_DELEGATE)."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
-
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from datetime import datetime, time
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, Time, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,31 +27,42 @@ class AIDelegateConfig(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    class_: Mapped["Class"] = relationship("Class", back_populates="ai_delegate_config")  # noqa: F821
+    class_: Mapped["Class"] = relationship("Class", back_populates="ai_delegate_config")
 
 
-class FilierePDFDocument(Base):
-    """Stores a parsed PDF (timetable or exam schedule) uploaded by the chef de filière.
-
-    The external scheduling system produces PDFs; we extract their text and feed it to
-    the AI delegate bot via LangChain RAG rather than storing structured rows.
-    """
-
-    __tablename__ = "filiere_pdf_documents"
+class TimetableSlot(Base):
+    __tablename__ = "timetable_slots"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    filiere_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("filieres.id", ondelete="CASCADE"), nullable=False, index=True
+    class_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # "timetable" | "exam_schedule"
-    doc_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    # Full text extracted from the PDF by PyMuPDF
-    extracted_text: Mapped[str] = mapped_column(Text, nullable=False)
-    # Original file stored on Cloudinary (resource_type=raw)
-    cloudinary_url: Mapped[str] = mapped_column(Text, nullable=False)
-    uploaded_at: Mapped[datetime] = mapped_column(
+    day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=Monday .. 6=Sunday
+    start_time: Mapped[time] = mapped_column(Time, nullable=False)
+    end_time: Mapped[time] = mapped_column(Time, nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    room: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    teacher_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    filiere: Mapped["Filiere"] = relationship("Filiere", back_populates="pdf_documents")  # noqa: F821
+    class_: Mapped["Class"] = relationship("Class", back_populates="timetable_slots")
+
+
+class ExamEvent(Base):
+    __tablename__ = "exam_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    class_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    room: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    class_: Mapped["Class"] = relationship("Class", back_populates="exam_events")

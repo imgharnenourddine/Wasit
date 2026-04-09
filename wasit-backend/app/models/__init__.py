@@ -1,5 +1,5 @@
 from app.core.database import Base
-from app.models.delegate_data import AIDelegateConfig, FilierePDFDocument
+from app.models.delegate_data import AIDelegateConfig, ExamEvent, TimetableSlot
 from app.models.institution import Class, Filiere, School
 from app.models.notification import Notification
 from app.models.problem import AggregationGroup, Problem
@@ -26,5 +26,6 @@ __all__ = [
     "TelegramGroup",
     "TelegramMessage",
     "AIDelegateConfig",
-    "FilierePDFDocument",
+    "TimetableSlot",
+    "ExamEvent",
 ]

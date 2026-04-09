@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.models.delegate_data import AIDelegateConfig, FilierePDFDocument
+    from app.models.delegate_data import AIDelegateConfig, ExamEvent, TimetableSlot
     from app.models.problem import AggregationGroup
     from app.models.student import ProjectGroup, Student
     from app.models.ticket import Ticket
@@ -59,12 +59,6 @@ class Filiere(Base):
     classes: Mapped[list["Class"]] = relationship(
         back_populates="filiere", cascade="all, delete-orphan", passive_deletes=True
     )
-    pdf_documents: Mapped[list["FilierePDFDocument"]] = relationship(
-        "FilierePDFDocument",
-        back_populates="filiere",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
 
     def __repr__(self) -> str:
         return f"Filiere(id={self.id}, name={self.name}, school_id={self.school_id})"
@@ -107,6 +101,18 @@ class Class(Base):
         back_populates="class_",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+    timetable_slots: Mapped[list["TimetableSlot"]] = relationship(
+        "TimetableSlot",
+        back_populates="class_",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    exam_events: Mapped[list["ExamEvent"]] = relationship(
+        "ExamEvent",
+        back_populates="class_",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     def __repr__(self) -> str:
