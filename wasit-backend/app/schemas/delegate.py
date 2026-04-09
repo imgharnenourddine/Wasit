@@ -1,10 +1,7 @@
 import uuid
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, Field
-
-DOC_TYPE = Literal["timetable", "exam_schedule"]
 
 
 class AIDelegateUpsert(BaseModel):
@@ -23,14 +20,30 @@ class AIDelegateResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class FilierePDFDocumentResponse(BaseModel):
+class TimetableSlotIn(BaseModel):
+    day_of_week: int = Field(ge=0, le=6, description="0=Monday … 6=Sunday")
+    start_time: str = Field(examples=["09:00"])
+    end_time: str
+    subject: str
+    room: str | None = None
+    teacher_name: str | None = None
+
+
+class ExamEventIn(BaseModel):
+    title: str
+    subject: str | None = None
+    starts_at: datetime
+    room: str | None = None
+
+
+class ExamEventResponse(BaseModel):
     id: uuid.UUID
-    filiere_id: uuid.UUID
-    doc_type: DOC_TYPE
-    filename: str
-    extracted_text: str
-    cloudinary_url: str
-    uploaded_at: datetime
+    class_id: uuid.UUID
+    title: str
+    subject: str | None
+    starts_at: datetime
+    room: str | None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 

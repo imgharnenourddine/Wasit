@@ -41,8 +41,6 @@ class DelegateInfo(BaseModel):
     first_name: str
     last_name: str
 
-    model_config = {"from_attributes": True}
-
 
 class ClassCreate(BaseModel):
     name: str
