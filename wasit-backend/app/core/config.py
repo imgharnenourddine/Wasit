@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ANTHROPIC_API_KEY: str | None = None
+    openrouter_api_key: str = ""
+    openrouter_model: str = "google/gemma-2-9b-it:free"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_referer: str = "http://localhost"
+    openrouter_title: str = "wasit-backend"
     MISTRAL_API_KEY: str
     CLOUDINARY_CLOUD_NAME: str
     CLOUDINARY_API_KEY: str

@@ -1,3 +1,11 @@
+import asyncio
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -5,6 +13,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.api.v1.routes.agents import router as agents_router
 from app.api.v1.routes.analytics import router as analytics_router
+from app.api.v1.routes.debug import router as debug_router
+from app.api.v1.routes.delegate import router as delegate_router
 from app.api.v1.routes.auth import router as auth_router
 from app.api.v1.routes.files import router as files_router
 from app.api.v1.routes.institutional import router as institutional_router
@@ -13,8 +23,10 @@ from app.api.v1.routes.students import router as students_router
 from app.api.v1.routes.telegram import router as telegram_router
 from app.api.v1.routes.tickets import router as tickets_router
 from app.core.config import settings
-from app.core.database import SessionLocal, init_db
+from app.core.database import SessionLocal, init_db_background
 from app.services.tickets import auto_escalate_overdue_tickets
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 
@@ -40,7 +52,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup() -> None:
-    await init_db()
+    logger.info("startup: scheduling background database init (non-blocking for /health)")
+    asyncio.create_task(init_db_background())
     scheduler = AsyncIOScheduler()
 
     async def _escalation_job() -> None:
@@ -54,6 +67,7 @@ async def on_startup() -> None:
 API_PREFIX = settings.api_prefix
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(institutional_router, prefix=API_PREFIX)
+app.include_router(delegate_router, prefix=API_PREFIX)
 app.include_router(students_router, prefix=API_PREFIX)
 app.include_router(tickets_router, prefix=API_PREFIX)
 app.include_router(files_router, prefix=API_PREFIX)
@@ -61,6 +75,7 @@ app.include_router(notifications_router, prefix=API_PREFIX)
 app.include_router(telegram_router, prefix=API_PREFIX)
 app.include_router(agents_router, prefix=API_PREFIX)
 app.include_router(analytics_router, prefix=API_PREFIX)
+app.include_router(debug_router, prefix=API_PREFIX)
 
 
 @app.get("/health")

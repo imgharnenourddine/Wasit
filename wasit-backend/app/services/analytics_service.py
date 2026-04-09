@@ -166,12 +166,13 @@ async def get_ticket_trends(db: AsyncSession, school_id: uuid.UUID, days: int = 
     start = end - timedelta(days=days - 1)
     start_dt = datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc)
 
+    created_day = func.date_trunc("day", Ticket.created_at).label("created_day")
     created_rows = await db.execute(
-        select(func.date_trunc("day", Ticket.created_at), func.count())
+        select(created_day, func.count(Ticket.id).label("cnt"))
         .join(Class, Ticket.class_id == Class.id)
         .join(Filiere, Class.filiere_id == Filiere.id)
         .where(Filiere.school_id == school_id, Ticket.created_at >= start_dt)
-        .group_by(func.date_trunc("day", Ticket.created_at))
+        .group_by(created_day)
     )
     created_map: dict[date, int] = {}
     for row in created_rows.all():
@@ -180,8 +181,9 @@ async def get_ticket_trends(db: AsyncSession, school_id: uuid.UUID, days: int = 
             day = d.date() if isinstance(d, datetime) else d
             created_map[day] = int(cnt)
 
+    resolved_day = func.date_trunc("day", Ticket.resolved_at).label("resolved_day")
     resolved_rows = await db.execute(
-        select(func.date_trunc("day", Ticket.resolved_at), func.count())
+        select(resolved_day, func.count(Ticket.id).label("cnt"))
         .join(Class, Ticket.class_id == Class.id)
         .join(Filiere, Class.filiere_id == Filiere.id)
         .where(
@@ -189,7 +191,7 @@ async def get_ticket_trends(db: AsyncSession, school_id: uuid.UUID, days: int = 
             Ticket.resolved_at.is_not(None),
             Ticket.resolved_at >= start_dt,
         )
-        .group_by(func.date_trunc("day", Ticket.resolved_at))
+        .group_by(resolved_day)
     )
     resolved_map: dict[date, int] = {}
     for row in resolved_rows.all():

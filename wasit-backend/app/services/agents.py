@@ -3,6 +3,7 @@ from uuid import UUID
 
 from app.agents.pipeline import run_agent_pipeline
 from app.agents.state import AgentState
+from app.core.database import SessionLocal
 
 
 async def run_pipeline(ticket_id: UUID, class_id: UUID, student_id: UUID, raw_text: str) -> dict[str, Any]:
@@ -13,10 +14,11 @@ async def run_pipeline(ticket_id: UUID, class_id: UUID, student_id: UUID, raw_te
         "raw_text": raw_text,
         "telegram_sent": False,
     }
-    try:
-        state = await run_agent_pipeline(state)
-        state["status"] = "ok"
-    except Exception as exc:  # pragma: no cover - defensive integration guard
-        state["status"] = "failed"
-        state["error"] = str(exc)
+    async with SessionLocal() as db:
+        try:
+            state = await run_agent_pipeline(state, db)
+            state["status"] = "ok"
+        except Exception as exc:  # pragma: no cover - defensive integration guard
+            state["status"] = "failed"
+            state["error"] = str(exc)
     return state

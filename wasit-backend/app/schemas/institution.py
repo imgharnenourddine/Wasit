@@ -29,6 +29,7 @@ class FiliereResponse(BaseModel):
     school_id: uuid.UUID
     name: str
     responsible_id: uuid.UUID | None
+    aggregation_poll_threshold: int = 3
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -39,6 +40,8 @@ class DelegateInfo(BaseModel):
     email: str
     first_name: str
     last_name: str
+
+    model_config = {"from_attributes": True}
 
 
 class ClassCreate(BaseModel):

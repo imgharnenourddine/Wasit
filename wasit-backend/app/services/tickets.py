@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.student import Student
 from app.models.problem import Problem
 from app.models.ticket import Ticket, TicketCategory, TicketHistory, TicketPriority, TicketStatus
+from app.models.user import Role, User
 from app.services.agents import run_pipeline
 
 
@@ -131,17 +132,22 @@ async def auto_escalate_overdue_tickets(db: AsyncSession) -> int:
         select(Ticket).where(and_(Ticket.status == TicketStatus.in_progress, Ticket.updated_at <= cutoff))
     )
     overdue = list(result.scalars().all())
+    admin_row = await db.execute(
+        select(User).where(User.role == Role.admin, User.is_active.is_(True)).limit(1)
+    )
+    admin_user = admin_row.scalar_one_or_none()
     for ticket in overdue:
         ticket.status = TicketStatus.escalated
-        db.add(
-            TicketHistory(
-                ticket_id=ticket.id,
-                changed_by="system",
-                old_status=TicketStatus.in_progress,
-                new_status=TicketStatus.escalated,
-                note="Auto-escalated: no response in 48h",
+        if admin_user:
+            db.add(
+                TicketHistory(
+                    ticket_id=ticket.id,
+                    changed_by=admin_user.id,
+                    old_status=TicketStatus.in_progress,
+                    new_status=TicketStatus.escalated,
+                    note="Auto-escalated: no response in 48h",
+                )
             )
-        )
     if overdue:
         await db.commit()
     return len(overdue)
