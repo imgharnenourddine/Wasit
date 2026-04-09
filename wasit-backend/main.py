@@ -13,7 +13,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.api.v1.routes.agents import router as agents_router
 from app.api.v1.routes.analytics import router as analytics_router
-from app.api.v1.routes.debug import router as debug_router
 from app.api.v1.routes.delegate import router as delegate_router
 from app.api.v1.routes.auth import router as auth_router
 from app.api.v1.routes.files import router as files_router
@@ -75,7 +74,6 @@ app.include_router(notifications_router, prefix=API_PREFIX)
 app.include_router(telegram_router, prefix=API_PREFIX)
 app.include_router(agents_router, prefix=API_PREFIX)
 app.include_router(analytics_router, prefix=API_PREFIX)
-app.include_router(debug_router, prefix=API_PREFIX)
 
 
 @app.get("/health")

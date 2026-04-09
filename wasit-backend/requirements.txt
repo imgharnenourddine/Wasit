@@ -21,9 +21,3 @@ pytest==8.3.4
 pytest-asyncio==0.25.0
 respx==0.22.0
 aiosqlite==0.20.0
-# PDF + LangChain RAG for AI delegate bot
-langchain==0.3.*
-langchain-community==0.3.*
-langchain-mistralai==0.2.*
-pymupdf==1.24.*
-faiss-cpu==1.8.*
