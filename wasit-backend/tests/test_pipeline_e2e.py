@@ -126,19 +126,16 @@ async def test_run_agent_pipeline_full_mocked_http(
     )
 
     notify = AsyncMock(return_value={"sent": 1, "destination": "delegate", "ticket_id": str(ticket.id)})
-    tg = AsyncMock(return_value={"sent": False, "reason": "group_not_registered"})
 
     state: AgentState = {
         "ticket_id": str(ticket.id),
         "class_id": str(cls.id),
         "student_id": str(student.id),
         "raw_text": "I failed the midterm",
-        "telegram_sent": False,
     }
 
     with patch("app.agents.broadcast.notify_destination", notify):
-        with patch("app.services.telegram.send_to_group", tg):
-            out = await run_agent_pipeline(state, db)
+        out = await run_agent_pipeline(state, db)
 
     assert mistral.called
     assert out.get("category") == "academic"

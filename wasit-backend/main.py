@@ -13,13 +13,13 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.api.v1.routes.agents import router as agents_router
 from app.api.v1.routes.analytics import router as analytics_router
+from app.api.v1.routes.chat import router as chat_router
 from app.api.v1.routes.delegate import router as delegate_router
 from app.api.v1.routes.auth import router as auth_router
 from app.api.v1.routes.files import router as files_router
 from app.api.v1.routes.institutional import router as institutional_router
 from app.api.v1.routes.notifications import router as notifications_router
 from app.api.v1.routes.students import router as students_router
-from app.api.v1.routes.telegram import router as telegram_router
 from app.api.v1.routes.tickets import router as tickets_router
 from app.core.config import settings
 from app.core.database import SessionLocal, init_db_background
@@ -49,6 +49,17 @@ app.add_middleware(
 )
 
 
+async def _init_db_background() -> None:
+    try:
+        await init_db()
+        logger.info("Database tables initialized (create_all).")
+    except Exception:
+        logger.exception(
+            "init_db failed — check PostgreSQL is running and DATABASE_URL in .env. "
+            "API /health still works; routes using the DB will error until the DB is available."
+        )
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
     logger.info("startup: scheduling background database init (non-blocking for /health)")
@@ -71,9 +82,9 @@ app.include_router(students_router, prefix=API_PREFIX)
 app.include_router(tickets_router, prefix=API_PREFIX)
 app.include_router(files_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
-app.include_router(telegram_router, prefix=API_PREFIX)
 app.include_router(agents_router, prefix=API_PREFIX)
 app.include_router(analytics_router, prefix=API_PREFIX)
+app.include_router(chat_router, prefix=API_PREFIX)
 
 
 @app.get("/health")

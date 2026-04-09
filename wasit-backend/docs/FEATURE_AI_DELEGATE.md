@@ -37,7 +37,6 @@ For day-to-day API setup see [`../README.md`](../README.md). For backend integra
   - **Classes** under their filière
   - **Human delegates** per class
   - **AI Delegate** configuration per class (see below)
-  - **Telegram** linkage per class
   - **Trombinoscope** (student directory with photos)
   - **Emploi du temps** (timetable)
 
@@ -45,23 +44,21 @@ For day-to-day API setup see [`../README.md`](../README.md). For backend integra
 
 - Belongs to **one** filière.
 - Has **one human delegate** and **one AI delegate** (conceptually).
-- Has a **Telegram group** linked for class communication.
+- Has an **Internal Chat channel** for class communication.
 - Has a **trombinoscope** and an **emploi du temps** (and optionally exam schedule), as product scope expands.
 
 ### Reference data model (target)
 
 These names are **conceptual**; the live DB may use slightly different table/column names (e.g. `Class` vs `Classe`, `responsible_id` vs `chef_id`).
 
-```text
 School
   └── Filiere (chef / responsible user)
         └── Class
               ├── delegate (User)
-              ├── AI Delegate (config + Telegram behavior)
-              ├── TelegramGroup
+              ├── AI Delegate (config + Chat behavior)
+              ├── Internal Chat Channel
               ├── Trombinoscope / students
               └── Emploi du temps / exams (as modeled)
-```
 
 ---
 
@@ -74,7 +71,6 @@ The **Chef de Filière** can:
 | Create classes | Under their filière |
 | Assign delegate | Human **delegate** user per class |
 | Configure AI Delegate | Per-class bot behavior, prompts, activation |
-| Link Telegram | Associate the class **Telegram** group with the system |
 | Manage timetable | Upload / update **emploi du temps** |
 | Manage trombinoscope | Student directory for the class |
 | View analytics | Aggregated views for **their filière** |
@@ -89,11 +85,8 @@ class Filiere(Base):
 class Class(Base):
     id, name, filiere_id
     delegate_id     # → User (delegate)
-    # ai_delegate_id, telegram — may live on related tables
-
-class AIDelegate(Base):
+class AIDelegateConfig(Base):
     id, class_id
-    telegram_bot_token   # or central bot + routing — see design decisions
     personality_prompt   # system prompt for the AI
     is_active
 ```
@@ -112,8 +105,8 @@ Students and teachers interact with the AI Delegate in **two complementary modes
 
 | Mode | Behavior |
 |------|----------|
-| **Class group** | The bot **listens** to the official class Telegram (or equivalent) group: questions, noise, repeated asks. It can reply in-thread, run polls, and summarize for staff. |
-| **One-to-one (DM)** | A student (or teacher) can **message the bot privately** for a direct answer, a sensitive question, or to continue a thread without flooding the group. |
+| **Internal Chat Channel** | The bot **listens** to the official class chat channel: questions, noise, repeated asks. It can reply in-thread (if supported) or in the main channel. |
+| **One-to-one (DM)** | A student (or teacher) can **message the bot privately** (future implementation) for direct answers. |
 
 Both modes use the same **class context** (timetable, exams, trombinoscope, etc.); policy can define what is answered only in DM vs in group.
 
@@ -142,14 +135,13 @@ Together, this makes the AI Delegate the **operational communication layer** bet
 
 ```mermaid
 flowchart TD
-    A[Students in Telegram group] --> B[AI Delegate listens]
+    A[Students in Internal Chat] --> B[AI Delegate listens]
     B --> C{Question answerable from DB?}
-    C -->|Yes| D[Answer in group]
+    C -->|Yes| D[Answer in Chat]
     C -->|No| E[Aggregate / queue]
     E --> F{Same ask by many students?}
-    F -->|Yes| G[Create poll optional]
+    F -->|Yes| I[Send summary to teacher]
     F -->|No| H[Queue single request]
-    G --> I[Send summary to teacher]
     H --> I
     I --> J[Teacher replies]
     J --> K[Broadcast to class]
@@ -204,10 +196,7 @@ Anything in §4 that lists a **data source** column depends on this layer being 
 
 The AI Delegate should detect **similarity**, then optionally:
 
-- Create a **poll** in Telegram: e.g. Yes / No with vote counts.
-- Summarize for the teacher: e.g. “18/22 students voted to postpone Thursday…”
-
-Thresholds (e.g. “≥3 similar asks → poll”) can be **configurable per filière**.
+Thresholds (e.g. “≥3 similar asks”) can be **configurable per filière**.
 
 ---
 
@@ -239,7 +228,6 @@ A **private Telegram chat** (or equivalent channel) per teacher, with **conversa
 | POST | `/filiere/{id}/classes` | Create class |
 | POST | `/filiere/{id}/classes/{class_id}/delegate` | Assign human delegate |
 | POST | `/filiere/{id}/classes/{class_id}/ai-delegate` | Create/update AI delegate |
-| POST | `/filiere/{id}/classes/{class_id}/telegram` | Link Telegram group |
 
 Exact paths should follow the project’s existing **`/api/v1`** conventions and auth.
 
@@ -300,12 +288,11 @@ Illustrative tool surface for the AI Delegate:
 
 | Area | In this repo today | Gap vs this doc |
 |------|--------------------|-----------------|
-| School / Filière / Class | `app/models/institution.py` | Chef modeled as **`Filiere.responsible_id`**, not necessarily a `chef` role enum |
+| School / Filière / Class | `app/models/institution.py` | Chef modeled as **`Filiere.responsible_id`** |
 | Delegate | `Class.delegate_id`, `Role.delegate` | Matches “human delegate” |
-| Telegram | `TelegramGroup` per class | **Linking** exists; **AI Delegate router / intents** not built |
-| Tickets & agents | Pipeline (classify → aggregate → …) | **Different** flow: institutional **tickets**, not full Telegram AI Delegate |
-| Trombi / students | Student models & routes | Partial; **timetable / exams / polls** as first-class features largely **not** here |
-| Chef APIs | Institutional routes + analytics | **Not** exactly the Phase 2 table above; evolve incrementally |
+| Internal Chat | `ChatChannel` per class/project | Fully implemented; synced with institutional roles |
+| AI Delegate | Integrated into Chat flow | **Autonomous tool use** (Timetable, Exams) implemented |
+| Tickets & agents | Pipeline (classify → aggregate → …) | Fully functional and routed |
 
 Treat this file as the **north star** for the AI Delegate feature; implementation should land in **incremental PRs** (models → APIs → webhook + intents → tools).
 

@@ -1,0 +1,72 @@
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Chat System Verification
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Traceback (most recent call last):
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 72, in map_httpcore_exceptions
+    yield
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 236, in handle_request
+    resp = self._pool.handle_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpcore/_sync/connection.py", line 101, in handle_request
+    raise exc
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpcore/_sync/connection.py", line 78, in handle_request
+    stream = self._connect(request)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpcore/_sync/connection.py", line 124, in _connect
+    stream = self._network_backend.connect_tcp(**kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpcore/_backends/sync.py", line 207, in connect_tcp
+    with map_exceptions(exc_map):
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [Errno 111] Connection refused
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/chat_test.py", line 35, in <module>
+    r = client.post(f"{BASE}/auth/register", json={
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_client.py", line 1157, in post
+    return self.request(
+           ^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_client.py", line 837, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_client.py", line 926, in send
+    response = self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_client.py", line 954, in _send_handling_auth
+    response = self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_client.py", line 991, in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_client.py", line 1027, in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 235, in handle_request
+    with map_httpcore_exceptions():
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/home/edder/Documents/Wasit/Wasit/wasit-backend/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 89, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [Errno 111] Connection refused
+INFO:     Started server process [238041]
+INFO:     Waiting for application startup.
+2026-04-09 02:53:35,151 INFO [main] startup: scheduling background database init (non-blocking for /health)
+2026-04-09 02:53:35,157 INFO [apscheduler.scheduler] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-09 02:53:35,167 INFO [apscheduler.scheduler] Added job "on_startup.<locals>._escalation_job" to job store "default"
+2026-04-09 02:53:35,168 INFO [apscheduler.scheduler] Scheduler started
+2026-04-09 02:53:35,169 INFO [app.core.database] init_db: connecting and creating tables if missing
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)

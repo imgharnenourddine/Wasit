@@ -1,10 +1,10 @@
 from app.core.database import Base
+from app.models.chat import ChannelMember, ChannelType, ChatChannel, ChatMessage
 from app.models.delegate_data import AIDelegateConfig, ExamEvent, TimetableSlot
 from app.models.institution import Class, Filiere, School
 from app.models.notification import Notification
 from app.models.problem import AggregationGroup, Problem
 from app.models.student import ProjectGroup, ProjectGroupMember, Student
-from app.models.telegram import TelegramGroup, TelegramMessage
 from app.models.ticket import Ticket, TicketHistory
 from app.models.user import Role, User
 
@@ -23,9 +23,11 @@ __all__ = [
     "Ticket",
     "TicketHistory",
     "Notification",
-    "TelegramGroup",
-    "TelegramMessage",
     "AIDelegateConfig",
     "TimetableSlot",
     "ExamEvent",
+    "ChatChannel",
+    "ChatMessage",
+    "ChannelMember",
+    "ChannelType",
 ]

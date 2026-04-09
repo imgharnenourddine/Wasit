@@ -1,6 +1,6 @@
 # Wasit Backend
 
-FastAPI + SQLAlchemy (async) + PostgreSQL API for **Wasit** — routing student problems through tickets, an **LLM agent pipeline** (classify → aggregate → route → summarize → broadcast), institutional hierarchy (school → filière → class), notifications (REST + WebSocket), Telegram, file uploads (Cloudinary), and analytics dashboards.
+FastAPI + SQLAlchemy (async) + PostgreSQL API for **Wasit** — routing student problems through tickets, an **LLM agent pipeline** (classify → aggregate → route → summarize → broadcast), institutional hierarchy (school → filière → class), notifications (REST + WebSocket), internal professional chat, file uploads (Cloudinary), and analytics dashboards.
 
 For product context see the repo root [`README.md`](../README.md). For architecture gaps and roadmap see [`README_SYSTEM.md`](README_SYSTEM.md) and [`BACKEND_INTEGRATION_PLAN.md`](BACKEND_INTEGRATION_PLAN.md).
 
@@ -54,12 +54,12 @@ wasit-backend/
 ├── .env.example            # Template for local secrets (copy to .env)
 ├── app/
 │   ├── api/v1/routes/      # auth, institutional, students, tickets, files,
-│   │                       # notifications, telegram, agents, analytics
+│   │                       # notifications, chat, agents, analytics
 │   ├── agents/             # classifier, aggregator, router, summary, broadcast, pipeline
 │   ├── core/               # config, database, dependencies, security
 │   ├── models/             # SQLAlchemy models
 │   ├── schemas/            # Pydantic request/response models
-│   ├── services/           # Business logic (tickets, agents, telegram, notifications, …)
+│   ├── services/           # Business logic (tickets, agents, chat, notifications, …)
 │   └── utils/
 └── tests/                  # pytest (router, classifier mock, agent_persist)
 ```
@@ -86,7 +86,6 @@ Copy **`.env.example`** to **`.env`** and fill values. Pydantic loads from `.env
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Yes | File upload routes |
 | `OPENROUTER_API_KEY` | No | Summaries via `openrouter_client`; empty → summary uses text fallback |
 | `OPENROUTER_MODEL`, `OPENROUTER_BASE_URL`, `OPENROUTER_REFERER`, `OPENROUTER_TITLE` | No | Defaults in settings |
-| `TELEGRAM_BOT_TOKEN` | No | Telegram integrations |
 | `SMTP_*` | No | Reserved; email not wired to notifications yet |
 
 Never commit **`.env`** or real secrets.
@@ -186,7 +185,7 @@ Groups below are mounted under **`/api/v1`**. Exact paths and bodies are in **`/
 | `/tickets` | Create ticket + problem, list by student/class, status updates, admin lists |
 | `/files` | Uploads (Cloudinary-backed service) |
 | `/notifications` | List/mark read; WebSocket endpoint for live updates |
-| `/telegram` | Register class Telegram group, send, message history, webhook-style intake |
+| `/chat` | Internal professional chat channels (REST + WebSockets) |
 | `/agents` | **`POST /agents/dry-run`** — admin-only; runs classifier → router → summary **without** DB aggregation (for prompt/key checks) |
 | `/analytics` | School overview, filière stats, class patterns, trends, top issues |
 
@@ -201,14 +200,14 @@ When a **ticket** is created from student text (`app/services/tickets.py`), the 
 3. **Router** — Rule-based `destination`: `teacher`, `admin`, `listening`, `emergency`, `delegate`.
 4. **Persist** — Maps outputs onto **`Ticket`** and **`Problem`** (`agent_persist`) **before** downstream steps.
 5. **Summary** — OpenRouter JSON chat (or fallback text if API unavailable).
-6. **Broadcast** — **`notify_destination`** with DB (persisted `Notification` + WebSocket). For **`teacher`**, may call **Telegram** `send_to_group` when a group is registered.
+6. **Broadcast** — **`notify_destination`** with DB (persisted `Notification` + WebSocket). Native notifications are triggered for staff/delegates.
 
 Emergency category **skips** the LLM summary step and uses a **text fallback** in broadcast.
 
 ```text
 Ticket created → run_pipeline(SessionLocal)
   → classify → aggregate(DB) → route → persist(Ticket/Problem)
-  → [if not emergency] summary → broadcast(DB + optional Telegram)
+  → [if not emergency] summary → broadcast(DB)
   → [if emergency] broadcast only
 ```
 
@@ -243,7 +242,7 @@ pytest tests/ -v
 | `Settings` / import errors on startup | All **required** env vars in `.env`; see [Environment variables](#environment-variables) |
 | Summary always fallback | `OPENROUTER_API_KEY` empty or invalid; check logs |
 | No notifications after ticket | Staff users exist for routed **role**; DB connection; WebSocket client subscribed |
-| Telegram not sending | Class registered via Telegram routes; bot token + chat id; destination is **`teacher`** |
+| No notifications after ticket | Staff users exist for routed **role**; DB connection; WebSocket client subscribed |
 | Migration errors | `DATABASE_URL` matches DB; run `alembic upgrade head` |
 
 ---

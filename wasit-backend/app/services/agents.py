@@ -12,7 +12,6 @@ async def run_pipeline(ticket_id: UUID, class_id: UUID, student_id: UUID, raw_te
         "class_id": str(class_id),
         "student_id": str(student_id),
         "raw_text": raw_text,
-        "telegram_sent": False,
     }
     async with SessionLocal() as db:
         try:

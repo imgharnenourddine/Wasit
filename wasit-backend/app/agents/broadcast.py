@@ -16,14 +16,4 @@ async def broadcast_result(state: AgentState, db: AsyncSession) -> AgentState:
         )
 
     await notify_destination(destination=destination, summary=summary, ticket_id=ticket_id, db=db)
-
-    sent_tg = False
-    if destination == "teacher":
-        from app.services.telegram import send_to_group
-
-        class_id = state.get("class_id", "")
-        out = await send_to_group(db, class_id, summary)
-        sent_tg = bool(out.get("sent"))
-
-    state["telegram_sent"] = sent_tg
     return state

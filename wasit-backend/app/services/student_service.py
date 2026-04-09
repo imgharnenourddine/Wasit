@@ -12,6 +12,7 @@ from app.core.security import hash_password
 from app.models.institution import Class
 from app.models.student import ProjectGroup, ProjectGroupMember, Student
 from app.models.user import Role, User
+from app.services.chat_service import get_or_create_class_channel, get_or_create_project_channel
 
 
 def _generate_temp_password(length: int = 12) -> str:
@@ -29,24 +30,28 @@ async def bulk_create_students(db: AsyncSession, class_id: uuid.UUID, parsed_row
     errors: list[dict] = []
 
     for row in parsed_rows:
-        existing = await db.scalar(select(User).where(User.email == row["email"]))
-        if existing:
-            skipped += 1
-            errors.append({"email": row["email"], "error": "Email already exists"})
-            continue
-
-        temp_password = _generate_temp_password()
-        user = User(
-            email=row["email"],
-            hashed_password=await hash_password(temp_password),
-            role=Role.student,
-            first_name=row["first_name"],
-            last_name=row["last_name"],
-            phone=row.get("phone"),
-            is_active=True,
+        user = await db.scalar(select(User).where(User.email == row["email"]))
+        if not user:
+            temp_password = _generate_temp_password()
+            user = User(
+                email=row["email"],
+                hashed_password=await hash_password(temp_password),
+                role=Role.student,
+                first_name=row["first_name"],
+                last_name=row["last_name"],
+                phone=row.get("phone"),
+                is_active=True,
+            )
+            db.add(user)
+            await db.flush()
+        
+        # Check if student already in THIS class
+        existing_student = await db.scalar(
+            select(Student).where(Student.user_id == user.id, Student.class_id == class_id)
         )
-        db.add(user)
-        await db.flush()
+        if existing_student:
+            skipped += 1
+            continue
 
         student = Student(
             user_id=user.id,
@@ -59,6 +64,10 @@ async def bulk_create_students(db: AsyncSession, class_id: uuid.UUID, parsed_row
         created += 1
 
     await db.commit()
+    
+    # Sync new students to class channel
+    await get_or_create_class_channel(db, class_id)
+    
     return {"created": created, "skipped": skipped, "errors": errors}
 
 
@@ -105,6 +114,9 @@ async def generate_project_groups(db: AsyncSession, class_id: uuid.UUID, group_s
     await db.commit()
     for group in groups:
         await db.refresh(group)
+        # Provision project channel
+        await get_or_create_project_channel(db, group.id)
+        
     return groups
 
 

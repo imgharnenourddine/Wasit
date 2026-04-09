@@ -29,7 +29,6 @@ async def agents_dry_run(
         "class_id": str(payload.class_id),
         "student_id": str(payload.student_id),
         "raw_text": payload.raw_text,
-        "telegram_sent": False,
     }
     state = await classify_problem(state)
     state = route_destination(state)

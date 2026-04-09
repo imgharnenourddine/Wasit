@@ -18,5 +18,4 @@ class AgentState(TypedDict):
     ticket_id: str
     class_id: str
     student_id: str
-    telegram_sent: bool
     error: str | None

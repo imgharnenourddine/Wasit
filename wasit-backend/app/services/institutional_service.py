@@ -9,6 +9,7 @@ from app.models.institution import Class, Filiere, School
 from app.models.student import Student
 from app.models.user import Role, User
 from app.schemas.institution import ClassCreate, FiliereCreate, SchoolCreate
+from app.services.chat_service import get_or_create_class_channel
 
 
 async def create_school(db: AsyncSession, data: SchoolCreate) -> School:
@@ -50,6 +51,10 @@ async def create_class(db: AsyncSession, data: ClassCreate) -> Class:
     db.add(class_room)
     await db.commit()
     await db.refresh(class_room)
+    
+    # Provision chat channel
+    await get_or_create_class_channel(db, class_room.id)
+    
     return class_room
 
 
@@ -69,6 +74,10 @@ async def assign_delegate(db: AsyncSession, class_id: uuid.UUID, user_id: uuid.U
 
     class_room.delegate_id = user_id
     await db.commit()
+    
+    # Sync delegate to chat channel
+    await get_or_create_class_channel(db, class_id)
+    
     result = await db.scalar(select(Class).where(Class.id == class_id).options(selectinload(Class.delegate)))
     return result
 

@@ -20,6 +20,7 @@ def _engine_connect_args() -> dict:
     return {}
 
 
+# Short connect timeout (asyncpg, seconds) so a down DB does not block startup for minutes.
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,

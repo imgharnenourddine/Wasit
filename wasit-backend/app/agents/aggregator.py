@@ -103,14 +103,12 @@ class AggregatorAgent:
             target_group.count += 1
             target_group.last_seen = datetime.now(timezone.utc)
 
-        existing = await db.execute(select(Problem).where(Problem.ticket_id == ticket_id))
-        problem = existing.scalar_one_or_none()
-        if problem:
-            problem.class_id = class_id
-            problem.student_id = student_id
-            problem.raw_text = raw_text
-            problem.category = category
-            problem.aggregation_group_id = target_group.id
+        existing = await db.scalar(select(Problem).where(Problem.ticket_id == ticket_id))
+        if existing is not None:
+            existing.class_id = class_id
+            existing.student_id = student_id
+            existing.category = category
+            existing.aggregation_group_id = target_group.id
         else:
             db.add(
                 Problem(
