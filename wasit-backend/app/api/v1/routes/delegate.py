@@ -1,7 +1,7 @@
 import uuid
-from typing import Annotated, Literal
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -11,75 +11,24 @@ from app.models.user import User
 from app.schemas.delegate import (
     AIDelegateResponse,
     AIDelegateUpsert,
+    ExamEventIn,
+    ExamEventResponse,
     FiliereAISettingsPatch,
-    FilierePDFDocumentResponse,
+    TimetableSlotIn,
 )
 from app.schemas.institution import AssignDelegateRequest, ClassCreate, ClassResponse, FiliereResponse
 from app.services.delegate_service import (
+    add_exam_events,
     assert_can_manage_class,
     create_class_as_chef,
     patch_filiere_ai_settings,
-    upload_filiere_pdf,
+    replace_timetable,
     upsert_ai_delegate,
 )
 from app.services.institutional_service import assign_delegate
-from app.services.pdf_service import get_filiere_document
 
 router = APIRouter(tags=["ai-delegate"])
 
-DocType = Literal["timetable", "exam_schedule"]
-
-
-# ---------------------------------------------------------------------------
-# Filière-level: PDF document upload & retrieval
-# ---------------------------------------------------------------------------
-
-@router.post(
-    "/filieres/{filiere_id}/documents/{doc_type}",
-    response_model=FilierePDFDocumentResponse,
-    summary="Upload a timetable or exam-schedule PDF for a filière",
-)
-async def upload_filiere_document(
-    filiere_id: uuid.UUID,
-    doc_type: DocType,
-    file: Annotated[UploadFile, File(description="PDF file from the external scheduling system")],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
-) -> FilierePDFDocumentResponse:
-    """Chef de filière or admin uploads a PDF.
-
-    - Validates it is a PDF.
-    - Extracts full text with PyMuPDF.
-    - Stores extracted text in the DB (replaces any previous doc of the same type).
-    - Saves the original file to Cloudinary.
-    """
-    row = await upload_filiere_pdf(db, current_user, filiere_id, doc_type, file)
-    return FilierePDFDocumentResponse.model_validate(row)
-
-
-@router.get(
-    "/filieres/{filiere_id}/documents/{doc_type}",
-    response_model=FilierePDFDocumentResponse,
-    summary="Get the current PDF document metadata for a filière",
-)
-async def get_filiere_document_endpoint(
-    filiere_id: uuid.UUID,
-    doc_type: DocType,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
-) -> FilierePDFDocumentResponse:
-    doc = await get_filiere_document(db, filiere_id, doc_type)
-    if doc is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No {doc_type} document uploaded for this filière yet.",
-        )
-    return FilierePDFDocumentResponse.model_validate(doc)
-
-
-# ---------------------------------------------------------------------------
-# Filière-level: class management & AI settings
-# ---------------------------------------------------------------------------
 
 @router.patch("/filieres/{filiere_id}/classes/{class_id}/delegate", response_model=ClassResponse)
 async def chef_assign_delegate(
@@ -119,10 +68,6 @@ async def patch_filiere_poll_settings(
     return FiliereResponse.model_validate(f)
 
 
-# ---------------------------------------------------------------------------
-# Class-level: AI delegate config
-# ---------------------------------------------------------------------------
-
 @router.put("/classes/{class_id}/ai-delegate", response_model=AIDelegateResponse)
 async def put_ai_delegate_config(
     class_id: uuid.UUID,
@@ -132,3 +77,25 @@ async def put_ai_delegate_config(
 ) -> AIDelegateResponse:
     row = await upsert_ai_delegate(db, current_user, class_id, payload)
     return AIDelegateResponse.model_validate(row)
+
+
+@router.put("/classes/{class_id}/timetable")
+async def put_class_timetable(
+    class_id: uuid.UUID,
+    slots: list[TimetableSlotIn],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> dict[str, int | str]:
+    n = await replace_timetable(db, current_user, class_id, slots)
+    return {"class_id": str(class_id), "slots_saved": n}
+
+
+@router.post("/classes/{class_id}/exams", response_model=list[ExamEventResponse])
+async def post_class_exams(
+    class_id: uuid.UUID,
+    events: list[ExamEventIn],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> list[ExamEventResponse]:
+    rows = await add_exam_events(db, current_user, class_id, events)
+    return [ExamEventResponse.model_validate(r) for r in rows]
